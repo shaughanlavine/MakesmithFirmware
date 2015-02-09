@@ -533,7 +533,179 @@ int Move(float xEnd, float yEnd, float zEnd, float moveSpeed){
 	return(1);
 }
 
-/*G1() is the function which is called to process the string if it begins with 'G01' or 'G00'*/
+/*G1() is the function which is called to process the string if it begins with 'G01'*/
+int G1(String readString){
+
+	float xgoto = 99999; //These are initialized to ridiculous values as a method to check if they have been changed or not, there is a better way to do this?
+	float ygoto = 99999;
+	float zgoto = 99999;
+	float gospeed = 0;
+	int i = 0;
+	int j = 0;
+	int begin;
+	int end;
+	char sect[22]; //This whole section is kinda a mess maybe it should be done like g1go()?
+	while (j < 23){
+		sect[j] = ' ';
+		j++;
+	}
+	i = 2;
+	memset(sect,0,sizeof(sect)); //This clears the array
+	while (i <= readString.length()){ //This code extracts the relevant information from the string. It's crude and should be made to work like the code in the g2go() function.
+		if(readString[i] == 'X'){
+			begin = i + 1;
+			while (i <= readString.length()){
+				if(readString[i] == ' '){
+					end = i - 1;
+					break;
+				}
+				i++;
+			}
+			i = begin;
+			while(i <= end){
+				sect[i - begin] = readString[i];
+				i++;
+			}
+			xgoto = atof(sect);
+			xgoto = -xgoto;
+			break;
+		}
+		i++;
+	}
+	i = 2;
+	memset(sect,0,sizeof(sect)); //This clears the array
+	while (i <= readString.length()){
+		//Serial.println("in length ran");
+		j = 0;
+		while (j < 23){
+			sect[j] = ' ';
+			j++;
+		}
+		if(readString[i] == 'Y'){
+			//Serial.println("ydetected at");
+			//Serial.println(i);
+			begin = i + 1;
+			while (i <= readString.length()){
+				//Serial.println("that");
+				if(readString[i] == ' '){
+					//Serial.println("space detected at");
+					//Serial.println(i);
+					end = i - 1;
+					break;
+				}
+				i++;
+			}
+			i = begin;
+			while(i <= end){
+				sect[i - begin] = readString[i];
+				i++;
+			}
+			//Serial.println("Y section:");
+			//Serial.println(sect);
+			ygoto = atof(sect);
+			break;
+		}
+		i++;
+	}
+	i = 2;
+	memset(sect,0,sizeof(sect)); //This clears the array
+	while (i <= readString.length()){
+		j = 0;
+		while (j < 23){
+			sect[j] = ' ';
+			j++;
+		}
+		//Serial.println("in length ran");
+		if(readString[i] == 'Z'){
+			//Serial.println("zdetected at");
+			//Serial.println(i);
+			begin = i + 1;
+			while (i <= readString.length()){
+				//Serial.println("that");
+				if(readString[i] == ' '){
+					//Serial.println("space detected at");
+					//Serial.println(i);
+					end = i - 1;
+					break;
+				}
+				i++;
+			}
+			i = begin;
+			while(i <= end){
+				sect[i - begin] = readString[i];
+				i++;
+			}
+			zgoto = atof(sect);
+			break;
+		}
+		i++;
+	}
+	i = 2;
+	memset(sect,0,sizeof(sect)); //This clears the array
+	while (i <= readString.length()){
+		//Serial.println("in length ran");
+		if(readString[i] == 'F'){
+			//Serial.println("fdetected at");
+			//Serial.println(i);
+			begin = i + 1;
+			while (i <= readString.length()){
+				if(readString[i] == ' '){
+					//Serial.println("space detected at");
+					//Serial.println(i);
+					end = i - 1;
+					break;
+				}
+				i++;
+			}
+			i = begin;
+			while(i <= end){
+				sect[i - begin] = readString[i];
+				i++;
+			}
+			//Serial.println("Sect: ");
+			//Serial.println(sect);
+			gospeed = atof(sect);
+			break;
+		}
+		i++;
+	}
+	
+	
+	if(unitScalor > 15){ //running in inches
+			gospeed = gospeed * 25.4; //convert to inches
+	}
+	if(gospeed >= 4){ //feedrate is preserved because most function lines of gcode rely on it having been preserved from the previous call.
+		feedrate = gospeed;
+	}
+	
+	xgoto = xgoto * unitScalor;
+	ygoto = ygoto * unitScalor;
+	zgoto = zgoto * unitScalor;
+	
+	
+	
+	if( xgoto > 9000 ){ //These check to see if a variable hasn't been changed and make the machine hold position on that axis
+		xgoto = location.xtarget;
+	}
+	if( ygoto > 9000 ){
+		ygoto = location.ytarget;
+	}
+	if( zgoto > 9000 ){
+		zgoto = location.ztarget;
+	}
+	
+	
+	int tempo = Move(xgoto, ygoto, zgoto, feedrate); //The move is performed
+	
+	if (tempo == 1){ //If the move finishes successfully
+		location.xtarget = xgoto;
+		location.ytarget = ygoto;
+		location.ztarget = zgoto;
+	}
+}
+
+/*G0() is the function which is called to process the string if it begins with 'G00'
+It is just like G1(), except that it moves at */
 int G1(String readString){
 
 	float xgoto = 99999; //These are initialized to ridiculous values as a method to check if they have been changed or not, there is a better way to do this?
