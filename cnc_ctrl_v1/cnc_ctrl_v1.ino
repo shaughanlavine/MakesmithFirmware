@@ -160,7 +160,7 @@ void loop(){
 		servoDetachFlag = 0;
 	}
 	
-	if(readString.substring(0, 3) == "G01" || readString.substring(0, 3) == "G00" || readString.substring(0, 3) == "G0 " || readString.substring(0, 3) == "G1 "){
+	if(readString.substring(0, 3) == "G01" || readString.substring(0, 3) == "G1 "){
 		//Serial.println("G1 recognized");
 		G1(readString);
 		Serial.println("ready");
@@ -169,6 +169,15 @@ void loop(){
 		time = millis();
 	}
 	
+	if(readString.substring(0, 3) == readString.substring(0, 3) == "G00" || readString.substring(0, 3) == "G0 "){
+		//Serial.println("G1 recognized");
+		G0(readString);
+		Serial.println("ready");
+		Serial.println("gready");
+		readString = "";
+		time = millis();
+	}
+
 	if(readString.substring(0, 3) == "G02" || readString.substring(0, 3) == "G2 "){
 		//Serial.println("G02 recognized");
 		G2(readString);
@@ -200,14 +209,18 @@ void loop(){
 	
 	if(readString.substring(0, 3) == "G20"){
 		//Serial.println("Inches Set");
-		unitScalor = 20; //there are 20 rotations per inch
+		XunitScalar = 25.4/XPITCH; //Convert to inches.
+		YunitScalar = 25.4/YPITCH; //Convert to inches.
+		ZunitScalar = 25.4/ZPITCH; //Convert to inches.
 		Serial.println("gready");
 		readString = "";
 	}
 	
 	if(readString.substring(0, 3) == "G21"){
 		//Serial.println("mm set");
-		unitScalor = 1/1.27; //the machine moves 1.27 mm per rotation
+		XunitScalar = 1/XPITCH;
+		YunitScalar = 1/YPITCH;
+		ZunitScalar = 1/ZPITCH;
 		Serial.println("gready");
 		readString = "";
 	}
