@@ -238,7 +238,7 @@ int SetPos(location_st* position){
 		}
 		if(PreviousXangle > 850 && CurrentXangle < 200){
 			CurrentXangle = 0;
-       			position->xpos = position->xpos + (1023 - PreviousXangle)/1023.0;
+			position->xpos = position->xpos + (1023 - PreviousXangle)/1023.0;
 		}
 	}
 	if(abs(CurrentYangle - PreviousYangle) <= maxJump){
@@ -379,7 +379,6 @@ int SetTarget(float xTarget, float yTarget, float zTarget, location_st* position
 	y.write(90 + YDIRECTION*yspeed);
 	z.write(90 + ZDIRECTION*zspeed);
 }
-
 
 /*The Unstick() function is called to attempt to unstick the machine when it becomes stuck. */
 int Unstick(Servo axis, int direction){
@@ -726,7 +725,7 @@ int G1(String readString){
 	  feedrate = gospeed; //mm per min
 	}
 	
-	xgoto = xgoto * XunitScalar; //
+	xgoto = xgoto * XunitScalar;
 	ygoto = ygoto * YunitScalar;
 	zgoto = zgoto * ZunitScalar;
 	

@@ -160,7 +160,7 @@ void loop(){
 		servoDetachFlag = 0;
 	}
 	
-	if(readString.substring(0, 3) == "G01" || readString.substring(0, 3) == "G1 "){
+	if(readString.substring(0, 3) == "G01" || readString.substring(0, 3) == "G00" || readString.substring(0, 3) == "G0 " || readString.substring(0, 3) == "G1 "){
 		//Serial.println("G1 recognized");
 		G1(readString);
 		Serial.println("ready");
@@ -169,8 +169,8 @@ void loop(){
 		time = millis();
 	}
 	
-	if(readString.substring(0, 3) == readString.substring(0, 3) == "G00" || readString.substring(0, 3) == "G0 "){
-		//Serial.println("G1 recognized");
+readString.substring(0, 3) == "G00" || readString.substring(0, 3) == "G0 "){
+		//Serial.println("G0 recognized");
 		G0(readString);
 		Serial.println("ready");
 		Serial.println("gready");
@@ -366,8 +366,8 @@ void loop(){
 	}
 	
 	if (readString.length() > 0){
-		//Serial.println(readString);
-		//Serial.println("<-- Unknown
+		Serial.println(readString);
+		Serial.println("<-- Unknown
 		readString = "";
 		Serial.println("gready");
 	}
