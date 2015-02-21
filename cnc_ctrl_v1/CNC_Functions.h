@@ -50,7 +50,7 @@ easy to interpolate from the specs usually given for servos.*/
 #define MAXSPEED .8*FREESPEED //rpm Even when not cutting, there is some friction.
 #define MAXCUTSPEED .6*FREESPEED //rpm
 
-#define KP 400 //gain, in preparation for PID. Multiplies speed error in revolutions per timestep
+#define KP 400 //gain, in preparation for PID. Multiplies speed error in revolutions per time step
 #define KPP 123 //also gain---there are two values in the present code
 #define KPX 0
 #define KPY 0
@@ -347,8 +347,11 @@ int SetSpeed(float posNow, float posTarget, int gain){
 }
 
 /*PIDSetSpeed() takes a position and a target and sets the speed of the servo to hit that target.*/
-int PIDSetSpeed(float posStart, float posNow, float posTarget, float feedrate, float KP, float KI, float KD){
-  float speedChange = 0.0;
+int PIDSetSpeed(float posStart, float posNow, float posTarget, float feedrate, int kp, int ki, int kd){
+  int speedChange = 0.0;
+  static float previousError = 0.0;
+  static float previousPosStart = 0.0;
+  float speed;
 
   previousError = error;
   previousPosStart = posStart;
@@ -357,7 +360,7 @@ int PIDSetSpeed(float posStart, float posNow, float posTarget, float feedrate, f
   speedChange = (posNow - posStart) - (posStart - oldPosStart);
   oldPosStart = posStart;
 	
-  speed = (KP * error) + (KI * errorSum) + (KD * speedChange);
+  speed = (kp * error) + (ki * errorSum) + (kd * speedChange);
 	
 	if(abs(error) < .02){ //Set the deadband
 		speed = 0;
@@ -753,7 +756,7 @@ int G1(String readString){
 
 /*G0() is the function which is called to process the string if it begins with 'G00'
 It is just like G1(), except that it moves at MAXSPEED, and the rate is not saved.*/
-int G1(String readString){
+int G0(String readString){
 
 	float xgoto = 99999; //These are initialized to ridiculous values as a method to check if they have been changed or not, there is a better way to do this?
 	float ygoto = 99999;

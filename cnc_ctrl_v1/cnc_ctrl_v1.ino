@@ -169,7 +169,7 @@ void loop(){
 		time = millis();
 	}
 	
-readString.substring(0, 3) == "G00" || readString.substring(0, 3) == "G0 "){
+	if(readString.substring(0, 3) == "G00" || readString.substring(0, 3) == "G0 "){
 		//Serial.println("G0 recognized");
 		G0(readString);
 		Serial.println("ready");
@@ -367,7 +367,7 @@ readString.substring(0, 3) == "G00" || readString.substring(0, 3) == "G0 "){
 	
 	if (readString.length() > 0){
 		Serial.println(readString);
-		Serial.println("<-- Unknown
+		Serial.println("<-- Unknown");
 		readString = "";
 		Serial.println("gready");
 	}
