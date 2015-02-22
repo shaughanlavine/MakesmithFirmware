@@ -61,7 +61,8 @@
 #define KDY 0
 #define KDZ 0
 
-int feedrate
+int renew = 1;
+int feedrate;
 float XunitScalar = (1/XPITCH);
 float YunitScalar = (1/YPITCH);
 float ZunitScalar = (1/ZPITCH);
@@ -344,8 +345,8 @@ int SetSpeed(float posNow, float posTarget, int gain){
 /*PIDSetSpeed() takes a position and a target and sets the speed of the servo to hit that target. 
 posStart is the location _in rotations_ at the beginning of the previous tick.
 posTarget is the location _in rotations_ the machine is supposed to be going now in one tick.
-new resets the static values when a new line is begun or the feedrate changes.*/
-int PIDSetSpeed(float posNow, float posTarget, int kp, int ki, int kd, int new){
+renew resets the static values when a new line is begun or the feedrate changes.*/
+int PIDSetSpeed(float posNow, float posTarget, int kp, int ki, int kd, int renew){
   float speedChange = 0.0;
   static float previousError = 0.0;
   static float posStart = posNow;
@@ -354,13 +355,13 @@ int PIDSetSpeed(float posNow, float posTarget, int kp, int ki, int kd, int new){
   static float errorSum = 0.0;  
   float speed;
 
-  if( new ){
+  if( renew ){
   previousError = 0.0;
   posStart = posNow;
   previousPosStart = posNow;
   error = 0.0;
   errorSum = 0.0;
-  new = 0;
+  renew = 0;
   }
 
   previousError = error;
@@ -443,7 +444,7 @@ int Unstick(Servo axis, int direction){
 
 /*The Move() function moves the tool in a straight line to the position (xEnd, yEnd, zEnd) (mm) at the speed moveSpeed (mm/min). Movements are correlated so that regardless of the distances moved in each direction, the tool moves to the target in a straight line. This function is used by the G0 and G1 commands.*/
 int Move(float xEnd, float yEnd, float zEnd, float moveSpeed, int g0){
-        xEnd = xEnd * XunitScalar; \\Work in rotations internally.
+  xEnd = xEnd * XunitScalar; //Work in rotations internally.
         yEnd = yEnd * YunitScalar;
         zEnd = zEnd * ZunitScalar;
 	float curXtarget, curYtarget, curZtarget;
@@ -491,7 +492,7 @@ int Move(float xEnd, float yEnd, float zEnd, float moveSpeed, int g0){
 	sinY = (location.ytarget - yEnd)/pathLength;
 	sinZ = (location.ztarget - zEnd)/pathLength;
 
-	speed = (g0?MAXSPEED;MAXCUTSPEED);
+	speed = (g0?MAXSPEED:MAXCUTSPEED);
 	if ( moveSpeed * XunitScalar * sinX > speed){ //Limits the movement speed to the ability of the machine.
 		  moveSpeed = MAXSPEED / (XunitScalar * sinX);
 	}
@@ -759,8 +760,8 @@ int G1(String readString){
 		zgoto = location.ztarget;
 	}
 	
-	
-	@	int tempo = Move(xgoto, ygoto, zgoto, feedrate, 0); //The move is performed
+	renew = 1; //Reset PID accumulators.
+	int tempo = Move(xgoto, ygoto, zgoto, feedrate, 0); //The move is performed
 	
 	if (tempo == 1){ //If the move finishes successfully
 	        location.xtarget = xgoto * XunitScalar;
@@ -908,9 +909,7 @@ int G0(String readString){
 	xgoto = xgoto * XunitScalar;
 	ygoto = ygoto * YunitScalar;
 	zgoto = zgoto * ZunitScalar;
-	
-	
-	
+
 	if( xgoto > 9000 ){ //These check to see if a variable hasn't been changed and make the machine hold position on that axis
 		xgoto = location.xtarget;
 	}
@@ -921,8 +920,8 @@ int G0(String readString){
 		zgoto = location.ztarget;
 	}
 	
-	
-		int tempo = Move(xgoto, ygoto, zgoto, 99999, 1); //The move is performed
+	renew = 1; //Reset PID accumulators.
+	int tempo = Move(xgoto, ygoto, zgoto, 99999, 1); //The move is performed
 	
 	if (tempo == 1){ //If the move finishes successfully
 	        location.xtarget = xgoto * XunitScalar;
@@ -999,7 +998,7 @@ int Circle(float radius, int direction, float xcenter, float ycenter, float star
 		location.ytarget = direction * radius * sin(3.141593*((float)i/(int)(stepMultiplier*radius))) + ycenter;
 		
 		SetPos(&location);
-		SetTarget(location.xtarget, location.ytarget, location.ztarget, &location, KPP);
+		SetTarget(location.xtarget, location.ytarget, location.ztarget, &location);
 		
 		if( millis() - stime > timeStep ){
 			if( abs(location.xpos - location.xtarget) < TOLERANCE && abs(location.ypos - location.ytarget) < TOLERANCE && abs(location.zpos - location.ztarget) < TOLERANCE){ //if the target is reached move to the next position
@@ -1156,7 +1155,7 @@ int G2(String readString){
 	
 	if(CircleReturnVal == 1){ //If the circle was cut correctly
 		while( abs(location.xpos + xval) > TOLERANCE or abs(location.ypos - yval) > TOLERANCE){ //This ensures that the circle is completed and that if it is a circle with a VERY large radius and a small angle it isn't neglected
-			SetTarget(-1*xval, yval, location.ztarget, &location, KPP);
+			SetTarget(-1*xval, yval, location.ztarget, &location);
 			//Serial.println(abs(location.xpos + xval));
 			SetPos(&location);
 		}
@@ -1442,7 +1441,7 @@ float toolOffset(int pin){
 		location.ztarget = location.ztarget - .05;
 		while(millis() - tmptime < 100){ //This is just a delay which doesn't lose the machine's position.
 			SetPos(&location); 
-			SetTarget(location.xtarget, location.ytarget, location.ztarget, &location, KPP);
+			SetTarget(location.xtarget, location.ytarget, location.ztarget, &location);
 
 			if(digitalRead(pin) == 0){  //The surface has been found
 				return(location.zpos);
