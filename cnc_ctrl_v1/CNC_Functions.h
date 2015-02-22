@@ -21,12 +21,11 @@
 #define BACKWARD -1
 
 //mm per rotation
-#define XPITCH 25.4 / 20
-#define YPITCH 25.4 / 20
-#define ZPITCH 25.4 / 20
+#define XPITCH (25.4 / 20)
+#define YPITCH (25.4 / 20)
+#define ZPITCH (25.4 / 20)
 
-#define FREESPEED 105 /*Max free-running rpm at 5V. Max speeds are computed from this since this is
-easy to interpolate from the specs usually given for servos.*/
+#define FREESPEED 105 /*Max free-running rpm at 5V. Max speeds are computed from this since this is easy to interpolate from the specs usually given for servos.*/
 
 #define XDIRECTION BACKWARD
 #define YDIRECTION BACKWARD
@@ -47,14 +46,14 @@ easy to interpolate from the specs usually given for servos.*/
 #define TOLERANCE .3//this sets how close to the target point the tool must be before it moves on.
 #define MOVETOLERANCE .2 //this sets how close the machine must be to the target line at any given moment
 
-#define MAXSPEED .8*FREESPEED //rpm Even when not cutting, there is some friction.
-#define MAXCUTSPEED .6*FREESPEED //rpm
+#define MAXSPEED (0.8*FREESPEED) //rpm Even when not cutting, there is some friction. These give the maximum rate _per axis:_ Diagonal cutting will be faster.
+#define MAXCUTSPEED (0.6*FREESPEED) //rpm
 
 #define KP 400 //gain, in preparation for PID. Multiplies speed error in revolutions per time step
 #define KPP 123 //also gain---there are two values in the present code
-#define KPX 0
-#define KPY 0
-#define KPZ 0
+#define KPX KP
+#define KPY KP
+#define KPZ KP
 #define KIX 0 //Multiplies sum of errors
 #define KIY 0
 #define KIZ 0
@@ -62,15 +61,11 @@ easy to interpolate from the specs usually given for servos.*/
 #define KDY 0
 #define KDZ 0
 
-int stepsize = 1;
-int feedrate = MAXCUTSPEED;
-float XunitScalar = 1/XPITCH;
-float YunitScalar = 1/YPITCH;
-float ZunitScalar = 1/ZPITCH;
+int feedrate
+float XunitScalar = (1/XPITCH);
+float YunitScalar = (1/YPITCH);
+float ZunitScalar = (1/ZPITCH);
 location_st location = {0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 500 , 500 , 500, 0, 0, 0}; 
-float error = 0.0;
-float errorSum = 0.0;
-float oldPosStart = 0.0;
 int xpot = 8;
 int ypot = 9;
 int zpot = 10;
@@ -346,19 +341,34 @@ int SetSpeed(float posNow, float posTarget, int gain){
 	return(speed);
 }
 
-/*PIDSetSpeed() takes a position and a target and sets the speed of the servo to hit that target.*/
-int PIDSetSpeed(float posStart, float posNow, float posTarget, float feedrate, int kp, int ki, int kd){
-  int speedChange = 0.0;
+/*PIDSetSpeed() takes a position and a target and sets the speed of the servo to hit that target. 
+posStart is the location _in rotations_ at the beginning of the previous tick.
+posTarget is the location _in rotations_ the machine is supposed to be going now in one tick.
+new resets the static values when a new line is begun or the feedrate changes.*/
+int PIDSetSpeed(float posNow, float posTarget, int kp, int ki, int kd, int new){
+  float speedChange = 0.0;
   static float previousError = 0.0;
+  static float posStart = posNow;
   static float previousPosStart = 0.0;
+  static float error = 0.0;
+  static float errorSum = 0.0;  
   float speed;
 
+  if( new ){
+  previousError = 0.0;
+  posStart = posNow;
+  previousPosStart = posNow;
+  error = 0.0;
+  errorSum = 0.0;
+  new = 0;
+  }
+
   previousError = error;
-  previousPosStart = posStart;
-  error = posTarget - posNow; //Distance from target. Proportional to speed error, since we should be at the target.
+  error = (posTarget - posNow) - (posNow - previousPosStart); //The first term is the distance that should have been moved; the second, the distance actually moved.
   errorSum = errorSum + error;
-  speedChange = (posNow - posStart) - (posStart - oldPosStart);
-  oldPosStart = posStart;
+  speedChange = (posNow - posStart) - (posStart - previousPosStart);
+  previousPosStart = posStart;
+  posStart = posNow;
 	
   speed = (kp * error) + (ki * errorSum) + (kd * speedChange);
 	
@@ -371,12 +381,12 @@ int PIDSetSpeed(float posStart, float posNow, float posTarget, float feedrate, i
 	return(speed);
 }
 
-/*The SetTarget() function moves the machine to the position stored in the location structure.*/
-int SetTarget(float xTarget, float yTarget, float zTarget, location_st* position, int gain){
+/*The SetTarget() function attempts to move the machine to the Target position (mm) in one tick.*/
+int SetTarget(float xTarget, float yTarget, float zTarget, location_st* position){
 	int xspeed, yspeed, zspeed;
-	xspeed = SetSpeed(xTarget, location.xpos, gain); //Generate motor speeds
-	yspeed = SetSpeed(yTarget, location.ypos, gain);
-	zspeed = SetSpeed(zTarget, location.zpos, 200);
+	xspeed = PIDSetSpeed(location.xpos, (xTarget * XunitScalar), KPX, KIX, KDX, 0); //Generate motor speeds
+	yspeed = PIDSetSpeed(location.ypos, (yTarget * YunitScalar), KPY, KIY, KDY, 0);
+	zspeed = PIDSetSpeed(location.zpos, (zTarget * ZunitScalar), KPZ, KIZ, KDZ, 0);
 	
 	x.write(90 + XDIRECTION*xspeed); //Command the motors to rotate
 	y.write(90 + YDIRECTION*yspeed);
@@ -431,77 +441,84 @@ int Unstick(Servo axis, int direction){
 	}
 }
 
-/*The Move() function moves the tool in a straight line to the position (xEnd, yEnd, zEnd) at the speed moveSpeed. Movements are correlated so that regardless of the distances moved in each direction, the tool moves to the target in a straight line. This function is used by the G00 and G01 commands.*/
-int Move(float xEnd, float yEnd, float zEnd, float moveSpeed){
+/*The Move() function moves the tool in a straight line to the position (xEnd, yEnd, zEnd) (mm) at the speed moveSpeed (mm/min). Movements are correlated so that regardless of the distances moved in each direction, the tool moves to the target in a straight line. This function is used by the G0 and G1 commands.*/
+int Move(float xEnd, float yEnd, float zEnd, float moveSpeed, int g0){
+        xEnd = xEnd * XunitScalar; \\Work in rotations internally.
+        yEnd = yEnd * YunitScalar;
+        zEnd = zEnd * ZunitScalar;
 	float curXtarget, curYtarget, curZtarget;
 	long mtime = millis();
 	long ntime = millis();
 	float xIncmtDist, yIncmtDist, zIncmtDist;
 	float pathLength = sqrt(sq(location.xtarget - xEnd) + sq(location.ytarget - yEnd) + sq(location.ztarget - zEnd));
+	float sinX = 0;
+	float sinY = 0;
+	float sinZ = 0;
+	float speed;
+
 	float tempXpos = location.xpos;
 	float tempYpos = location.ypos;
 	float tempZpos = location.zpos;
 	float deltaX = 5;
 	float deltaY = 5;
 	float deltaZ = 5;
-	float moveFract;
 	static int shortCount = 0;
 	static int gain = KPP;
 	int timeStep = TIMESTEP;
 	//Serial.println("Length: ");
 	//Serial.println(pathLength);
+		
+	/* With luck, this won't be necessary with PID. */
+	/* if(pathLength < 1){ //This is used to adjust the machine's behavior when cutting many small lines */
+	/* 	shortCount++; */
+	/* } */
+	/* if(pathLength > 3){ */
+	/* 	shortCount = 0; */
+	/* } */
 	
-	if ( moveSpeed > MAXCUTSPEED){ //Limits the movement speed to the ability of the machine.
-		moveSpeed = MAXCUTSPEED;
-	}
-	
-	moveFract = moveSpeed/MAXCUTSPEED;
-	
-	if(pathLength < 1){ //This is used to adjust the machine's behavior when cutting many small lines
-		shortCount++;
-	}
-	if(pathLength > 3){
-		shortCount = 0;
-	}
-	
-	if(shortCount > 4){
-		gain = KP;
-	}
-	else{
-	  gain = KP;//KPP;
-	}
+	/* if(shortCount > 4){ */
+	/* 	gain = KP; */
+	/* } */
+	/* else{ */
+	/*   gain = KP;//KPP; */
+	/* } */
 	
 	if(pathLength < .1){ //This prevents div/0 errors.
 		pathLength = .1;
 	}
 	
-	
-	
-	if(location.xtarget < xEnd){ //sets up the distance to be moved at each time step
-		xIncmtDist = .05*moveFract*abs((location.xtarget - xEnd)/pathLength);
+	sinX = (location.xtarget - xEnd)/pathLength;
+	sinY = (location.ytarget - yEnd)/pathLength;
+	sinZ = (location.ztarget - zEnd)/pathLength;
+
+	speed = (g0?MAXSPEED;MAXCUTSPEED);
+	if ( moveSpeed * XunitScalar * sinX > speed){ //Limits the movement speed to the ability of the machine.
+		  moveSpeed = MAXSPEED / (XunitScalar * sinX);
 	}
-	else{
-		xIncmtDist = -.05*moveFract*abs((location.xtarget - xEnd)/pathLength);
+	if ( moveSpeed * YunitScalar * sinY > speed){
+		  moveSpeed = MAXSPEED / (YunitScalar * sinY);
 	}
-	
-	if(location.ytarget < yEnd){
-		yIncmtDist = .05*moveFract*abs((location.ytarget - yEnd)/pathLength);
+	if ( moveSpeed * ZunitScalar * sinZ > speed){
+		  moveSpeed = MAXSPEED / (ZunitScalar * sinZ);
 	}
-	else{
-		yIncmtDist = -.05*moveFract*abs((location.ytarget - yEnd)/pathLength);
+
+        xIncmtDist = (timeStep * moveSpeed * XunitScalar * sinX) / 60000; //Sets up the distance to be moved at each tick. Convert ms to minutes.
+        if(location.xtarget > xEnd){
+		xIncmtDist = -xIncmtDist;
 	}
-	
-	if(location.ztarget < zEnd){
-		zIncmtDist = .05*abs((location.ztarget - zEnd)/pathLength);
+	yIncmtDist = (timeStep * moveSpeed * YunitScalar * sinY) / 60000;
+        if(location.xtarget > xEnd){
+		xIncmtDist = -xIncmtDist;
 	}
-	else{
-		zIncmtDist = -.05*abs((location.ztarget - zEnd)/pathLength);
+	zIncmtDist = (timeStep * moveSpeed * ZunitScalar * sinZ) / 60000;
+        if(location.xtarget > xEnd){
+		xIncmtDist = -xIncmtDist;
 	}
-	
+
 	String stopString = "";
 	while(1){ //The movement takes place in here
 		SetPos(&location);
-		SetTarget(location.xtarget, location.ytarget, location.ztarget, &location, gain);
+		SetTarget(location.xtarget, location.ytarget, location.ztarget, &location);
 		if( millis() - mtime > timeStep){ 
 			if(abs(location.xpos - location.xtarget) < MOVETOLERANCE && abs(location.ypos - location.ytarget) < MOVETOLERANCE && abs(location.zpos - location.ztarget) < MOVETOLERANCE){ //updates the position if the tool is close to the target and the elapsed time has passed
 				location.xtarget = location.xtarget + xIncmtDist;
@@ -721,12 +738,10 @@ int G1(String readString){
 	}
 	
 	
-	if(XunitScalar > XPITCH){ //running in inches
-			gospeed = gospeed * 25.4; //convert from inches
+	if(XunitScalar > (1 / XPITCH)){ //running in inches
+			gospeed = gospeed * 25.4; //convert from inches, now mm/min
 	}
-	if(gospeed >= 4){ //feedrate is preserved because most function lines of gcode rely on it having been preserved from the previous call.
-	  feedrate = gospeed; //mm per min
-	}
+	feedrate = gospeed; //mm per min
 	
 	xgoto = xgoto * XunitScalar;
 	ygoto = ygoto * YunitScalar;
@@ -745,7 +760,7 @@ int G1(String readString){
 	}
 	
 	
-	int tempo = Move(xgoto, ygoto, zgoto, feedrate); //The move is performed
+	@	int tempo = Move(xgoto, ygoto, zgoto, feedrate, 0); //The move is performed
 	
 	if (tempo == 1){ //If the move finishes successfully
 	        location.xtarget = xgoto * XunitScalar;
@@ -754,14 +769,12 @@ int G1(String readString){
 	}
 }
 
-/*G0() is the function which is called to process the string if it begins with 'G00'
-It is just like G1(), except that it moves at MAXSPEED, and the rate is not saved.*/
+/*G0() is the function which is called to process the string if it begins with 'G00'*/
 int G0(String readString){
 
 	float xgoto = 99999; //These are initialized to ridiculous values as a method to check if they have been changed or not, there is a better way to do this?
 	float ygoto = 99999;
 	float zgoto = 99999;
-	float gospeed = 0;
 	int i = 0;
 	int j = 0;
 	int begin;
@@ -867,7 +880,7 @@ int G0(String readString){
 	while (i <= readString.length()){
 		//Serial.println("in length ran");
 		if(readString[i] == 'F'){
-			//Serial.println("in G00, fdetected at");
+			//Serial.println("In G00, fdetected at");
 			//Serial.println(i);
 			begin = i + 1;
 			while (i <= readString.length()){
@@ -886,16 +899,12 @@ int G0(String readString){
 			}
 			//Serial.println("Sect: ");
 			//Serial.println(sect);
-			gospeed = MAXSPEED; //F in G00 is an error. Ignore it.
+			// F in G00 is an error. Ignore it.
 			break;
 		}
 		i++;
 	}
 	
-	
-	if(XunitScalar > XPITCH){ //running in inches
-			gospeed = gospeed * 25.4; //convert from inches
-	}
 	xgoto = xgoto * XunitScalar;
 	ygoto = ygoto * YunitScalar;
 	zgoto = zgoto * ZunitScalar;
@@ -913,12 +922,12 @@ int G0(String readString){
 	}
 	
 	
-	int tempo = Move(xgoto, ygoto, zgoto, gospeed); //The move is performed
+		int tempo = Move(xgoto, ygoto, zgoto, 99999, 1); //The move is performed
 	
 	if (tempo == 1){ //If the move finishes successfully
-		location.xtarget = xgoto;
-		location.ytarget = ygoto;
-		location.ztarget = zgoto;
+	        location.xtarget = xgoto * XunitScalar;
+	        location.ytarget = ygoto * YunitScalar;
+	        location.ztarget = zgoto * ZunitScalar;
 	}
 }
 
@@ -1114,7 +1123,7 @@ int G2(String readString){
 		yval = location.ytarget; //The yval is the current location of the machine
 	}
 	
-	if(XunitScalar > XPITCH){ //running in inches
+	if(XunitScalar > (1 / XPITCH)){ //running in inches
 			fval = fval * 25.4; //convert from inches
 	}
 	

@@ -209,9 +209,9 @@ void loop(){
 	
 	if(readString.substring(0, 3) == "G20"){
 		//Serial.println("Inches Set");
-		XunitScalar = 25.4/XPITCH; //Convert to inches.
-		YunitScalar = 25.4/YPITCH; //Convert to inches.
-		ZunitScalar = 25.4/ZPITCH; //Convert to inches.
+		XunitScalar = 25.4/XPITCH; //Convert from inches.
+		YunitScalar = 25.4/YPITCH; //Convert from inches.
+		ZunitScalar = 25.4/ZPITCH; //Convert from inches.
 		Serial.println("gready");
 		readString = "";
 	}
