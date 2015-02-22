@@ -463,8 +463,7 @@ int Move(float xEnd, float yEnd, float zEnd, float moveSpeed, int g0){
 	float deltaX = 5;
 	float deltaY = 5;
 	float deltaZ = 5;
-	static int shortCount = 0;
-	static int gain = KPP;
+	//static int shortCount = 0;
 	int timeStep = TIMESTEP;
 	//Serial.println("Length: ");
 	//Serial.println(pathLength);
@@ -507,14 +506,23 @@ int Move(float xEnd, float yEnd, float zEnd, float moveSpeed, int g0){
         if(location.xtarget > xEnd){
 		xIncmtDist = -xIncmtDist;
 	}
+	if(abs(location.xpos - location.xtarget) < TOLERANCE){
+	  xIncmtDist = 0;
+	    }
 	yIncmtDist = (timeStep * moveSpeed * YunitScalar * sinY) / 60000;
         if(location.xtarget > xEnd){
 		xIncmtDist = -xIncmtDist;
 	}
+	if(abs(location.ypos - location.ytarget) < TOLERANCE){
+	  yIncmtDist = 0;
+	  }
 	zIncmtDist = (timeStep * moveSpeed * ZunitScalar * sinZ) / 60000;
-        if(location.xtarget > xEnd){
-		xIncmtDist = -xIncmtDist;
+        if(location.ztarget > zEnd){
+		zIncmtDist = -zIncmtDist;
 	}
+	if(abs(location.zpos - location.ztarget) < TOLERANCE){
+	  zIncmtDist = 0;
+	  }
 
 	String stopString = "";
 	while(1){ //The movement takes place in here
