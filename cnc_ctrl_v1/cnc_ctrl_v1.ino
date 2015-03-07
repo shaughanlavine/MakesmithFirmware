@@ -45,7 +45,6 @@ int begin;
 int end;
 char sect[22];
 
-
 //Sd2Card card;
 //SdVolume volume;
 //SdFile root;
@@ -134,7 +133,7 @@ void loop(){
 	readString = "";
 	
 	SetPos(&location); 
-	SetTarget(location.xtarget, location.ytarget, location.ztarget, &location, 123);
+	SetTarget(location.xtarget, location.ytarget, location.ztarget, &location);
 
 	if (Serial.available()){
 		while (Serial.available()) {
@@ -319,7 +318,7 @@ void loop(){
 		float ofset = toolOffset(SENSEPIN);
 		location.zpos = 0.0;
 		location.ztarget = location.zpos - ofset;
-		Move(location.xtarget, location.ytarget, location.ztarget, 127);
+		Move(location.xtarget, location.ytarget, location.ztarget, 10, 0);
 		time = millis();
 		readString = "";
 		Serial.println("gready");
