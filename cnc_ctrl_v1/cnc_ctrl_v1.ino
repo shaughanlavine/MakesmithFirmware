@@ -21,6 +21,7 @@
 #include <Servo.h>
 #include "MyTypes.h"
 #include <SPI.h>
+#include <EEPROM.h>
 #include "CNC_Functions.h"
 
 
@@ -74,7 +75,23 @@ void setup(){
 	TCNT1 = 50000;
 	TCCR1B |= (1 << CS12);
 	TIMSK1 |= (1 << TOIE1);
-	interrupts();   
+	interrupts(); 
+	if (EEPROM.read(4) == 56){ //If the EEPROM has been written to by a prevous calibration, this will be 56
+		xMagnetScale = float(EEPROM.read(1))/100.0;
+		yMagnetScale = float(EEPROM.read(2))/100.0;
+		zMagnetScale = float(EEPROM.read(3))/100.0;
+	}
+	
+	if (EEPROM.read(18) == 56){ //If valid data can be loaded
+		Serial.println("Position Loaded");
+		location.xpos = readFloat(5); //load the position from  the EEPROM
+		location.ypos = readFloat(10);
+		location.zpos = readFloat(14);
+		location.xtarget = location.xpos;
+		location.ytarget = location.ypos;
+		location.ztarget = location.zpos;
+	}
+	  
 }
 
 ISR(TIMER1_OVF_vect) //This code does not do anything right now, it is part of an ongoing effort to move the control system to be interupt driven
@@ -154,8 +171,7 @@ void loop(){
 			x.attach(XSERVO);
 			y.attach(YSERVO);
 			z.attach(ZSERVO);
-			//analogWrite(blPin, backLight);
-			//setContrast(contrast); 
+			//calibrateMagnets(); 
 		}
 		servoDetachFlag = 0;
 	}
@@ -286,7 +302,7 @@ void loop(){
 	}
 	
 	if(readString.substring(0, 3) == "B05"){
-		Serial.println("Firmware Version .57");
+		Serial.println("Firmware Version .59");
 		readString = "";
 		Serial.println("gready");
 	}
@@ -309,32 +325,38 @@ void loop(){
 		Serial.println("gready");
 	}
 	
-	if(readString == "Test Encoders"){
+	if(readString.substring(0,13) == "Test Encoders"){
 		testEncoders();
 		readString = "";
 		Serial.println("gready");
 	}
 	
-	if(readString == "Test Motors"){
+	if(readString.substring(0,11) == "Test Motors"){
 		testMotors();
 		readString = "";
 		Serial.println("gready");
 	}
 	
-	if(readString == "Test Both"){
+	if(readString.substring(0,9) == "Test Both"){
 		testBoth();
 		readString = "";
 		Serial.println("gready");
 	}
 	
-	if(readString == "Center Motors"){
+	if(readString.substring(0,13) == "Center Motors"){
 		Serial.println("center motors test begin");
 		centerMotors();
 		readString = "";
 		Serial.println("gready");
 	}
 	
-	if(readString[0] == 'T' || readString[0] == 't'){
+	if(readString.substring(0,13) == "Align Magnets"){
+		calibrateMagnets();
+		readString = "";
+		Serial.println("gready");
+	}
+	
+	if((readString[0] == 'T' || readString[0] == 't') && readString[1] != 'e'){
 		if(readString[1] == '0'){
 			digitalWrite(spindle, LOW);
 		}
@@ -347,6 +369,12 @@ void loop(){
 	}
 	
 	if( millis() - time > 500){
+		if (servoDetachFlag == 0){
+			writeFloat(5,location.xpos);
+			writeFloat(10,location.ypos);
+			writeFloat(14,location.zpos);
+			EEPROM.write(18,56); //This known value is used as a flag for if valid data can be read from EEPROM later
+		}
 		servoDetachFlag = 1;
 		x.detach();
 		y.detach();

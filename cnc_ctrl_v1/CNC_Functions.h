@@ -74,14 +74,30 @@ Servo y;
 Servo z;
 int servoDetachFlag = 1;
 int movemode = 1; //if move mode == 0 in relative mode,   == 1 in absolute mode
+float xMagnetScale = 1.23;
+float yMagnetScale = 1.23;
+float zMagnetScale = 1.23;
+
+
 
 /*PWMread() measures the duty cycle of a PWM signal on the provided pin. It then
 takes this duration and converts it to a ten bit number.*/
 int PWMread(int pin){
 	int duration = 0;
+	float tempMagnetScale = 1.23;
+	if (pin == xpot){
+		tempMagnetScale = xMagnetScale;
+	}
+	if (pin == ypot){
+		tempMagnetScale = yMagnetScale;
+	}
+	if (pin == zpot){
+		tempMagnetScale = zMagnetScale;
+	}
 	
-	duration = pulseIn(pin, HIGH, 2000); //This returns 
-	duration = (int)((float)duration*.9); //1.23 scales it to a ten bit number
+	
+	duration = pulseIn(pin, HIGH, 2000); //This returns the pulse duration
+	duration = (int)((float)duration*tempMagnetScale); //1.23 scales it to a ten bit number
 	
 	if (duration >= 1023){
 		duration = 1023;
@@ -462,6 +478,7 @@ int Move(float xEnd, float yEnd, float zEnd, float moveSpeed, int g0){
 	float deltaX = 5;
 	float deltaY = 5;
 	float deltaZ = 5;
+
 	static int shortCount = 0;
 	static int gain = KPP;
 	int timeStep = TIMESTEP;
@@ -1370,6 +1387,122 @@ void centerMotors(){
 	}
 }
 
+int calibrateMagnets(){
+	Serial.println("Calibrating Magnets");
+	
+	x.write(90);
+	y.write(90);
+	z.write(90);
+	
+	int maxXVal = 0;
+	int maxYVal = 0;
+	int maxZVal = 0;
+	
+	int tempVal = 0;
+	int i = 0;
+	x.write(180);
+	y.write(90);
+	z.write(90);
+	while(i<2000){
+		tempVal = pulseIn(xpot, HIGH, 2000); 
+		if (tempVal > maxXVal){
+			maxXVal = tempVal;
+		}
+		i++;
+	}
+	
+	tempVal = 0;
+	i = 0;
+	x.write(0);
+	y.write(90);
+	z.write(90);
+	while(i<2000){
+		tempVal = pulseIn(xpot, HIGH, 2000); 
+		if (tempVal > maxXVal){
+			maxXVal = tempVal;
+		}
+		i++;
+	}
+	
+	
+	tempVal = 0;
+	i = 0;
+	x.write(90);
+	y.write(180);
+	z.write(90);
+	while(i<2000){
+		tempVal = pulseIn(ypot, HIGH, 2000); 
+		if (tempVal > maxYVal){
+			maxYVal = tempVal;
+		}
+		i++;
+	}
+	
+	tempVal = 0;
+	i = 0;
+	x.write(90);
+	y.write(0);
+	z.write(90);
+	while(i<2000){
+		tempVal = pulseIn(ypot, HIGH, 2000); 
+		if (tempVal > maxYVal){
+			maxYVal = tempVal;
+		}
+		i++;
+	}
+	
+	tempVal = 0;
+	i = 0;
+	x.write(90);
+	y.write(90);
+	z.write(180);
+	while(i<2000){
+		tempVal = pulseIn(zpot, HIGH, 2000); 
+		if (tempVal > maxZVal){
+			maxZVal = tempVal;
+		}
+		i++;
+	}
+	
+	tempVal = 0;
+	i = 0;
+	x.write(90);
+	y.write(90);
+	z.write(0);
+	while(i<2000){
+		tempVal = pulseIn(zpot, HIGH, 2000); 
+		//Serial.println(tempVal);
+		if (tempVal > maxZVal){
+			maxZVal = tempVal;
+		}
+		i++;
+	
+	}
+	//maxXVal*x = 1024
+	//x = 1024/maxXVal
+	/*Serial.println(maxXVal);
+	Serial.println(maxYVal);
+	Serial.println(maxZVal);*/
+	
+	int xMagScale = round(100*(1024.0/float(maxXVal)));
+	int yMagScale = round(100*(1024.0/float(maxYVal)));
+	int zMagScale = round(100*(1024.0/float(maxZVal)));
+	
+	if (xMagScale < 60 || yMagScale < 60 || zMagScale < 60 ){	
+		Serial.println("Magnet calibration failed. Please try again.");
+		return 0;
+	}
+	Serial.println(xMagScale);
+	Serial.println(yMagScale);
+	Serial.println(zMagScale);
+	EEPROM.write(1,xMagScale);
+	EEPROM.write(2,yMagScale);
+	EEPROM.write(3,zMagScale);
+	EEPROM.write(4,56);//This is a marker value which is used to check if valid data can be read later
+	Serial.println("Magnet Positions Calibrated");
+	return 1;
+}
+	
 /*The G10() function handles the G10 gcode which re-zeroes one or all of the machine's axes.*/
 void G10(String readString){
 	
@@ -1452,5 +1585,29 @@ float toolOffset(int pin){
 			Serial.println("Surface not found, position the tool closer to the surface and try again.");
 			return(location.zpos);
 		}
+	}
+}
+
+//readFloat and writeFloat functions courtesy of http://www.alexenglish.info/2014/05/saving-floats-longs-ints-eeprom-arduino-using-unions/
+float readFloat(unsigned int addr){
+	union{
+		byte b[4];
+		float f;
+	} data;
+	for(int i = 0; i < 4; i++)
+	{
+		data.b[i] = EEPROM.read(addr+i);
+	}
+	return data.f;
+}
+
+void writeFloat(unsigned int addr, float x){
+	union{
+		byte b[4];
+		float f;
+	} data;
+	data.f = x;
+	for(int i = 0; i < 4; i++){
+		EEPROM.write(addr+i, data.b[i]);
 	}
 }
