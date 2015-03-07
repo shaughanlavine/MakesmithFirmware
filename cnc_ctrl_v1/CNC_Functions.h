@@ -386,7 +386,7 @@ int PIDSetSpeed(float posNow, float posTarget, int kp, int ki, int kd, int new){
   previousPosStart = posStart;
   posStart = posNow;
 	
-  speed = (kp * error) + (ki * errorSum) + (kd * speedChange);
+  speed = speed + (kp * error) + (ki * errorSum) + (kd * speedChange);
 	
 	if(abs(error) < .02){ //Set the deadband
 		speed = 0;
@@ -777,7 +777,7 @@ int G1(String readString){
 	}
 	
 	
-	@	int tempo = Move(xgoto, ygoto, zgoto, feedrate, 0); //The move is performed
+       	int tempo = Move(xgoto, ygoto, zgoto, feedrate, 0); //The move is performed
 	
 	if (tempo == 1){ //If the move finishes successfully
 	        location.xtarget = xgoto * XunitScalar;
