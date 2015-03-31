@@ -990,7 +990,7 @@ int Circle(float radius, int direction, float xcenter, float ycenter, float star
 	i = startrad*stepMultiplier*radius;
 	
 	if(endrad < startrad){ //avoids weird behavior when not valid indices are sent
-		endAngle = endAngle + (int)(2*stepMultiplier*radius);
+	  endAngle = endAngle + (int)(2*stepMultiplier*radius);
 	}
 	
 	/*Serial.println("IN CIRCLE: ");
