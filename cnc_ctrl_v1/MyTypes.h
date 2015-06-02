@@ -11,9 +11,9 @@ typedef struct {
   int xangle;
   int yangle;
   int zangle;
-  int xcarry;
-  int ycarry;
-  int zcarry;
+  //int xcarry;
+  //int ycarry;
+  //int zcarry;
 } location_st;
 
 //xpos is position
