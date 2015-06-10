@@ -66,7 +66,16 @@ int feedrate;
 float XunitScalar = (1/XPITCH);
 float YunitScalar = (1/YPITCH);
 float ZunitScalar = (1/ZPITCH);
-location_st location = {0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 500 , 500 , 500}; 
+location_st location = {0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0};
+vector_st speed = {0.0 , 0.0 , 0.0};
+vector_st speedChange = {0.0 , 0.0 , 0.0};
+vector_st posNow = {0.0, 0.0, 0.0};
+vector_st posStart = {0.0, 0.0, 0.0};
+vector_st previousPosTarget = {0.0, 0.0, 0.0};
+vector_st previousPosStart = {0.0, 0.0, 0.0};
+vector_st error = {0.0, 0.0, 0.0};
+vector_st errorSum = {0.0, 0.0, 0.0};  
+
 int xpot = 8;
 int ypot = 9;
 int zpot = 10;
@@ -74,7 +83,7 @@ Servo x;
 Servo y;
 Servo z;
 int servoDetachFlag = 1;
-int movemode = 1; //if move mode == 0 in relative mode,   == 1 in absolute mode
+int movemode = 1; //if movemode == 0 in relative mode,   == 1 in absolute mode
 float xMagnetScale = 1.23;
 float yMagnetScale = 1.23;
 float zMagnetScale = 1.23;
@@ -333,7 +342,7 @@ int SetPos(location_st* position){
 }
 
 /*BoostLimit sets the upper and lower bounds of the signals which go to the servos to prevent weird behavior. Valid input to set the servo speed ranges from 0-180, and the Arduino servo library gives strange results if you go outside those limits.*/
-int BoostLimit(int boost, int limit){
+float BoostLimit(float boost, float limit){
 	if(boost > limit){
 		boost = limit;
 	}
@@ -358,70 +367,61 @@ int SetSpeed(float posNow, float posTarget, int gain){
 	return(speed);
 }
 
-/*PIDSetSpeed() takes a position and a target and sets the speed of the servo to hit that target. 
+/*PIDSetSpeed() takes a position and a target and sets the speed of the servo to hit that target.
 posStart is the location _in rotations_ at the beginning of the previous tick.
 posTarget is the location _in rotations_ to which the machine is supposed to be going now in one tick.
 renew resets the static values when a new line is begun or the feedrate changes.*/
-int PIDSetSpeed(float posNow, float posTarget, int kp, int ki, int kd, int renew){
-  float speedChange = 0.0;
-  static float posStart = posNow;
-  static float previousPosStart = 0.0;
-  static float previousPosTarget = posNow;
-  static float error = 0.0;
-  static float errorSum = 0.0;  
-  float speed = 1.0;
-
-  if( renew ){
-  posStart = posNow;
-  previousPosStart = posNow;
+vector_st PIDSetSpeed(location_st* position, int renew_fl){
+  posNow = {position->xpos, position->ypos, position->zpos};
+  posTarget = {position->xtarget, position->ytarget, position->ztarget}
   previousPosTarget = posNow;
-  error = 0.0;
-  errorSum = 0.0;
-  renew = 0;
+
+  if( renew_fl ){
+  previousPosStart = posNow;
+  errorSum = {0.0, 0.0, 0.0};
+  renew_fl = 0;
   }
 
-  error = previousPosTarget - posNow;
-  errorSum = errorSum + error;
-  speedChange = (posNow - posStart) - (posStart - previousPosStart);
+  error.x = previousPosTarget.x - posNow.x;
+  error.y = previousPosTarget.y - posNow.y;
+  error.z = previousPosTarget.z - posNow.z;
+  errorSum.x = errorSum.x + error.x;
+  errorSum.y = errorSum.y + error.y;
+  errorSum.z = errorSum.z + error.z;
+  speedChange.x = (posNow.x - posStart.x) - (posStart.x - previousPosStart.x);
+  speedChange.y = (posNow.y - posStart.y) - (posStart.y - previousPosStart.y);
+  speedChange.z = (posNow.z - posStart.z) - (posStart.z - previousPosStart.z);
   previousPosStart = posStart;
   posStart = posNow;
   previousPosTarget = posTarget;
 	
-  speed = speed + (kp * error) + (ki * errorSum) + (kd * speedChange);
-	if(abs(posNow - posTarget) < .02){ //Set the deadband
-		speed = 0;  
+  speed.x = speed.x + (KPX * error.x) + (KIX * errorSum.x) + (KDX * speedChange.x);
+	if(abs(posNow.x - posTarget.x) < .02){ //Set the deadband
+		speed.x = 0;  
 	}
+	speed.x = BoostLimit(speed.x, 85); //Limits the output to an acceptable range
 	
-	speed = BoostLimit(speed, 85); //Limits the output to an acceptable range
-	//Serial.println("Error: ");
-	//Serial.println(error);
-	//Serial.println("Speed: ");
-	//Serial.println(speed);
+  speed.y = speed.y + (KPY * error.y) + (KIY * errorSum.y) + (KDY * speedChange.y);
+	if(abs(posNow.y - posTarget.y) < .02){
+		speed.y = 0;  
+	}
+	speed.y = BoostLimit(speed.y, 85);
+	
+  speed.z = speed.z + (KPZ * error.z) + (KIZ * errorSum.z) + (KDZ * speedChange.z);
+	if(abs(posNow.z - posTarget.z) < .02){
+		speed.z = 0;  
+	}
+	speed.z = BoostLimit(speed.z, 85);
 	return(speed);
 }
 
 /*The SetTarget() function attempts to move the machine to the Target position (in rotations) in one tick.*/
-int SetTarget(float xTarget, float yTarget, float zTarget, location_st* position){
-	int xspeed, yspeed, zspeed;
-	xspeed = PIDSetSpeed(location.xpos, xTarget, KPX, KIX, KDX, 0); //Generate motor speeds
-	yspeed = PIDSetSpeed(location.ypos, yTarget, KPY, KIY, KDY, 0);
-	zspeed = PIDSetSpeed(location.zpos, zTarget, KPZ, KIZ, KDZ, 0);
-
-	Serial.println("xTarget: ");
-	Serial.println(xTarget);
-	Serial.println("Xspeed: ");
-	Serial.println(xspeed);
-	Serial.println("yTarget: ");
-	Serial.println(yTarget);
-	Serial.println("Yspeed: ");
-	Serial.println(yspeed);
-	Serial.println("zTarget: ");
-	Serial.println(zTarget);
-	Serial.println("Zspeed: ");
-	Serial.println(zspeed);
-	x.write(90 + XDIRECTION*xspeed); //Command the motors to rotate
-	y.write(90 + YDIRECTION*yspeed);
-	z.write(90 + ZDIRECTION*zspeed);
+  int SetTarget(location_st* position){
+	vector_st speed;
+	speed = PIDSetSpeed(position, renew); //Generate motor speeds
+	x.write(90 + round(XDIRECTION*speed.x)); //Command the motors to rotate.
+	y.write(90 + round(YDIRECTION*speed.y)); //Round the speed floats to ints.
+	z.write(90 + round(ZDIRECTION*speed.z));
 }
 
 /*The Unstick() function is called to attempt to unstick the machine when it becomes stuck. */
@@ -484,7 +484,7 @@ int Move(float xEnd, float yEnd, float zEnd, float moveSpeed, int g0){
 	float cosX = 0;
 	float cosY = 0;
 	float cosZ = 0;
-	float speed;
+	float maxSpeed;
 
 	float tempXpos = location.xpos;
 	float tempYpos = location.ypos;
@@ -521,15 +521,15 @@ int Move(float xEnd, float yEnd, float zEnd, float moveSpeed, int g0){
 	cosY = (location.ypos - yEnd)/pathLength;
 	cosZ = (location.zpos - zEnd)/pathLength;
 
-	speed = (g0?MAXSPEED:MAXCUTSPEED);
-	if ( moveSpeed * XunitScalar * cosX > speed){ //Limits the movement speed to the ability of the machine.
-	       	  moveSpeed = speed / (XunitScalar * cosX);
+	maxSpeed = (g0?MAXSPEED:MAXCUTSPEED);
+	if ( moveSpeed * XunitScalar * cosX > maxSpeed){ //Limits the movement speed to the ability of the machine.
+	       	  moveSpeed = maxSpeed / (XunitScalar * cosX);
 	}
 	if ( moveSpeed * YunitScalar * cosY > speed){
-		  moveSpeed = speed / (YunitScalar * cosY);
+		  moveSpeed = maxSpeed / (YunitScalar * cosY);
 	}
 	if ( moveSpeed * ZunitScalar * cosZ > speed){
-		  moveSpeed = speed / (ZunitScalar * cosZ);
+		  moveSpeed = maxSpeed / (ZunitScalar * cosZ);
 	}
 
         xIncmtDist = (timeStep * moveSpeed * XunitScalar * cosX) / 60000; //Sets up the distance (in rotations) to be moved at each tick. Convert minutes to ms.
@@ -560,7 +560,7 @@ int Move(float xEnd, float yEnd, float zEnd, float moveSpeed, int g0){
 	String stopString = "";
 	while(1){ //The movement takes place in here
 		SetPos(&location);
-		SetTarget(location.xtarget, location.ytarget, location.ztarget, &location);
+    		SetTarget(&location);
 		if( millis() - mtime > timeStep){ 
 			if(abs(location.xpos - location.xtarget) < MOVETOLERANCE && abs(location.ypos - location.ytarget) < MOVETOLERANCE && abs(location.zpos - location.ztarget) < MOVETOLERANCE){ //updates the position and time if the tool is close to the target
 				location.xtarget = location.xtarget + xIncmtDist;
@@ -1035,7 +1035,7 @@ int Circle(float radius, int direction, float xcenter, float ycenter, float star
 		location.ytarget = direction * radius * sin(3.141593*((float)i/(int)(stepMultiplier*radius))) + ycenter;
 		
 		SetPos(&location);
-		SetTarget(location.xtarget, location.ytarget, location.ztarget, &location);
+		SetTarget(&location);
 		
 		if( millis() - stime > timeStep ){
 			if( abs(location.xpos - location.xtarget) < TOLERANCE && abs(location.ypos - location.ytarget) < TOLERANCE && abs(location.zpos - location.ztarget) < TOLERANCE){ //if the target is reached move to the next position
@@ -1192,12 +1192,13 @@ int G2(String readString){
 	
 	if(CircleReturnVal == 1){ //If the circle was cut correctly
 		while( abs(location.xpos + xval) > TOLERANCE or abs(location.ypos - yval) > TOLERANCE){ //This ensures that the circle is completed and that if it is a circle with a VERY large radius and a small angle it isn't neglected
-			SetTarget(-1*xval, yval, location.ztarget, &location);
+		location.xtarget = -1*xval;
+		location.ytarget = yval;
+		SetTarget(&location);
 			//Serial.println(abs(location.xpos + xval));
 			SetPos(&location);
 		}
 		location.xtarget = -1*xval;
-		location.ytarget = yval;
 	}
 	else{  //If something went wrong while cutting the circle
 		location.xtarget = location.xpos;
@@ -1594,7 +1595,7 @@ float toolOffset(int pin){
 		location.ztarget = location.ztarget - .05;
 		while(millis() - tmptime < 100){ //This is just a delay which doesn't lose the machine's position.
 			SetPos(&location); 
-			SetTarget(location.xtarget, location.ytarget, location.ztarget, &location);
+			SetTarget(&location);
 
 			if(digitalRead(pin) == 0){  //The surface has been found
 				return(location.zpos);
