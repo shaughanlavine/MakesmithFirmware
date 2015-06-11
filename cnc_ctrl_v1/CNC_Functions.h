@@ -74,7 +74,8 @@ vector_st posStart = {0.0, 0.0, 0.0};
 vector_st previousPosTarget = {0.0, 0.0, 0.0};
 vector_st previousPosStart = {0.0, 0.0, 0.0};
 vector_st error = {0.0, 0.0, 0.0};
-vector_st errorSum = {0.0, 0.0, 0.0};  
+vector_st errorSum = {0.0, 0.0, 0.0};
+vector_st posTarget;
 
 int xpot = 8;
 int ypot = 9;
@@ -352,20 +353,20 @@ float BoostLimit(float boost, float limit){
 	return (boost);
 }
 
-/*SetSpeed() takes a position and a target and sets the speed of the servo to hit that target. Right now it implements a proportional controller, where the gain is set by the 'gain' input. A PID controller would be better.*/
-int SetSpeed(float posNow, float posTarget, int gain){
-	int speed;
+/* /\*SetSpeed() takes a position and a target and sets the speed of the servo to hit that target. Right now it implements a proportional controller, where the gain is set by the 'gain' input. A PID controller would be better.*\/ */
+/* int SetSpeed(float posNow, float posTarget, int gain){ */
+/* 	int speed; */
 	
-	speed = gain * (posTarget - posNow); //Set speed proportional to the distance from the target
+/* 	speed = gain * (posTarget - posNow); //Set speed proportional to the distance from the target */
 	
-	if(abs(posNow - posTarget) < .02){ //Set the deadband
-		speed = 0;
-	}
+/* 	if(abs(posNow - posTarget) < .02){ //Set the deadband */
+/* 		speed = 0; */
+/* 	} */
 	
-	speed = BoostLimit(speed, 85); //Limits the output to an acceptable range
+/* 	speed = BoostLimit(speed, 85); //Limits the output to an acceptable range */
 	
-	return(speed);
-}
+/* 	return(speed); */
+/* }
 
 /*PIDSetSpeed() takes a position and a target and sets the speed of the servo to hit that target.
 posStart is the location _in rotations_ at the beginning of the previous tick.
@@ -373,7 +374,7 @@ posTarget is the location _in rotations_ to which the machine is supposed to be 
 renew resets the static values when a new line is begun or the feedrate changes.*/
 vector_st PIDSetSpeed(location_st* position, int renew_fl){
   posNow = {position->xpos, position->ypos, position->zpos};
-  posTarget = {position->xtarget, position->ytarget, position->ztarget}
+  posTarget = {position->xtarget, position->ytarget, position->ztarget};
   previousPosTarget = posNow;
 
   if( renew_fl ){
@@ -525,10 +526,10 @@ int Move(float xEnd, float yEnd, float zEnd, float moveSpeed, int g0){
 	if ( moveSpeed * XunitScalar * cosX > maxSpeed){ //Limits the movement speed to the ability of the machine.
 	       	  moveSpeed = maxSpeed / (XunitScalar * cosX);
 	}
-	if ( moveSpeed * YunitScalar * cosY > speed){
+	if ( moveSpeed * YunitScalar * cosY > maxSpeed){
 		  moveSpeed = maxSpeed / (YunitScalar * cosY);
 	}
-	if ( moveSpeed * ZunitScalar * cosZ > speed){
+	if ( moveSpeed * ZunitScalar * cosZ > maxSpeed){
 		  moveSpeed = maxSpeed / (ZunitScalar * cosZ);
 	}
 

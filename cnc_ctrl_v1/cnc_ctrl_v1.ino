@@ -133,7 +133,7 @@ void loop(){
 	readString = "";
 	
 	SetPos(&location); 
-	SetTarget(location.xtarget, location.ytarget, location.ztarget, &location);
+	SetTarget(&location);
 
 	if (Serial.available()){
 		while (Serial.available()) {
